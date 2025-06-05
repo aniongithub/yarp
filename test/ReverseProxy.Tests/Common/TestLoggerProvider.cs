@@ -7,7 +7,7 @@ using Xunit.Abstractions;
 
 namespace Yarp.ReverseProxy.Common;
 
-public sealed class TestLoggerProvider(ITestOutputHelper output) : ILoggerProvider
+internal sealed class TestLoggerProvider(ITestOutputHelper output) : ILoggerProvider
 {
     private readonly XunitLoggerProvider _xunitLoggerProvider = new(output);
 

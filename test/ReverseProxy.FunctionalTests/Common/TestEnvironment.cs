@@ -10,6 +10,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Hosting.Server.Features;
+using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Server.HttpSys;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
@@ -17,7 +19,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Xunit;
 using Xunit.Abstractions;
 using Yarp.ReverseProxy.Configuration;
 using Yarp.Tests.Common;
@@ -74,8 +75,7 @@ public class TestEnvironment
             ConfigureDestinationServices, ConfigureDestinationApp, UseHttpSysOnDestination);
         await destination.StartAsync(cancellationToken);
 
-        Exception proxyException = null;
-        using var proxy = CreateProxy(destination.GetAddress(), ex => proxyException = ex);
+        using var proxy = CreateProxy(destination.GetAddress());
         await proxy.StartAsync(cancellationToken);
 
         try
@@ -87,11 +87,9 @@ public class TestEnvironment
             await proxy.StopAsync(cancellationToken);
             await destination.StopAsync(cancellationToken);
         }
-
-        Assert.Null(proxyException);
     }
 
-    public IHost CreateProxy(string destinationAddress, Action<Exception> onProxyException = null)
+    public IHost CreateProxy(string destinationAddress)
     {
         return CreateHost(ProxyProtocol, UseHttpsOnProxy, HeaderEncoding,
             services =>
@@ -129,19 +127,6 @@ public class TestEnvironment
             },
             app =>
             {
-                app.Use(async (context, next) =>
-                {
-                    try
-                    {
-                        await next();
-                    }
-                    catch (Exception ex)
-                    {
-                        onProxyException?.Invoke(ex);
-                        throw;
-                    }
-                });
-
                 ConfigureProxyApp(app);
                 app.UseRouting();
                 app.UseEndpoints(builder =>
@@ -159,7 +144,6 @@ public class TestEnvironment
             {
                 config.AddInMemoryCollection(new Dictionary<string, string>()
                 {
-                    { "Logging:LogLevel:Yarp", "Trace" },
                     { "Logging:LogLevel:Microsoft", "Trace" },
                     { "Logging:LogLevel:Microsoft.AspNetCore.Hosting.Diagnostics", "Information" }
                 });
@@ -170,7 +154,7 @@ public class TestEnvironment
                 loggingBuilder.AddEventSourceLogger();
                 if (TestOutput != null)
                 {
-                    loggingBuilder.Services.AddSingleton<ILoggerProvider>(new TestLoggerProvider(TestOutput));
+                    loggingBuilder.AddXunit(TestOutput);
                 }
             })
             .ConfigureWebHost(webHostBuilder =>

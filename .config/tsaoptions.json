@@ -7,6 +7,6 @@
     "dotnetrp@microsoft.com"
   ],
   "projectName": "DEVDIV",
-  "repositoryName": "yarp",
+  "repositoryName": "ReverseProxy",
   "template": "TFSDEVDIV"
 }

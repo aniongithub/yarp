@@ -17,6 +17,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 using Xunit.Abstractions;
 using Yarp.ReverseProxy.Common;
+using Yarp.ReverseProxy.Utilities;
 using Yarp.Telemetry.Consumption;
 using Yarp.Tests.Common;
 
@@ -82,6 +83,7 @@ public class WebSocketsTelemetryTests
         Assert.Equal(written, telemetry.MessagesWritten);
     }
 
+#if NET7_0_OR_GREATER
     [Fact]
     public async Task Http2WebSocketsWork()
     {
@@ -117,6 +119,7 @@ public class WebSocketsTelemetryTests
         Assert.Equal(read, telemetry!.MessagesRead);
         Assert.Equal(written, telemetry.MessagesWritten);
     }
+#endif
 
     public enum Behavior
     {
@@ -443,6 +446,7 @@ public class WebSocketsTelemetryTests
         }
     }
 
+#if NET7_0_OR_GREATER
     private static HttpMessageInvoker CreateInvoker()
     {
         var handler = new SocketsHttpHandler
@@ -455,4 +459,5 @@ public class WebSocketsTelemetryTests
         handler.SslOptions.RemoteCertificateValidationCallback = (_, _, _, _) => true;
         return new HttpMessageInvoker(handler);
     }
+#endif
 }

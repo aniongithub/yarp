@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
@@ -415,7 +416,7 @@ public class TransformBuilderTests
     }
 
     [Fact]
-    public void DefaultsCanBeOverriddenByForwarded()
+    public void DefaultsCanBeOverridenByForwarded()
     {
         var transformBuilder = CreateTransformBuilder();
         var transforms = new[]
@@ -449,7 +450,7 @@ public class TransformBuilderTests
     }
 
     [Fact]
-    public async Task CallerCallsOverloadsWithoutCT_AllTransformsAreCalled()
+    public async Task CallerCallsOverloadsWihtoutCT_AllTransformsAreCalled()
     {
         var requestTransformsCalled = 0;
         var responseTransformsCalled = 0;

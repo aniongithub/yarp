@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Concurrent;
 using Microsoft.AspNetCore.Http;
+using Yarp.ReverseProxy.Configuration;
 using Yarp.ReverseProxy.Utilities;
 
 namespace Yarp.ReverseProxy.Model;

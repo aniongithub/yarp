@@ -5,7 +5,7 @@ using Xunit;
 
 namespace Yarp.ReverseProxy.Transforms.Tests;
 
-public class TransformBuilderContextFuncExtensionsTests : TransformExtensionsTestsBase
+public class TransformBuilderContextFuncExtensionsTests : TransformExtentionsTestsBase
 {
     [Fact]
     public void AddRequestTransform()

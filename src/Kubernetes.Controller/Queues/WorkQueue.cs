@@ -124,8 +124,9 @@ public class WorkQueue<TItem> : IWorkQueue<TItem>
     }
 
     /// <summary>
-    /// Gets the queue length of this instance.
+    /// Lengthes this instance.
     /// </summary>
+    /// <returns>System.Int32.</returns>
     public int Len()
     {
         lock (_sync)

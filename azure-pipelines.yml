@@ -11,7 +11,6 @@ variables:
   value: true
 - name: _BuildConfig
   value: Release
-# Rely on task Arcade injects, not auto-injected build step.
 - template: /eng/common/templates/variables/pool-providers.yml@self
 - name: skipComponentGovernanceDetection
   value: true
@@ -40,24 +39,13 @@ resources:
 extends:
   template: azure-pipelines/MicroBuild.1ES.Official.yml@MicroBuildTemplate
   parameters:
-    featureFlags:
-      autoBaseline: true
     sdl:
       sourceAnalysisPool:
         name: $(DncEngInternalBuildPool)
         image: 1es-windows-2022
         os: windows
-      policheck:
-          enabled: true
-      tsa:
-        enabled: true
-      codeql:
-        tsaEnabled: true
-      binskim:
-        enabled: true
-        # See https://dev.azure.com/securitytools/SecurityIntegration/_wiki/wikis/Guardian/1378/Glob-Format
-        analyzeTargetGlob: '**\bin\Yarp.ReverseProxy\**.dll;**\bin\Yarp.Telemetry.Consumption\**.dll'
-        preReleaseVersion: '4.3.1'
+    customBuildTags:
+    - ES365AIMigrationTooling
     stages:
     - stage: build
       displayName: Build

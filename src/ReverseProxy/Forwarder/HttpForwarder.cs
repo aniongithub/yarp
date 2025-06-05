@@ -11,7 +11,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
+#if NET8_0_OR_GREATER
 using Microsoft.AspNetCore.Http.Timeouts;
+#endif
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Logging;
 using Microsoft.Net.Http.Headers;
@@ -157,7 +159,6 @@ internal sealed class HttpForwarder : IHttpForwarder
 
                 try
                 {
-                    // CodeQL [SM03781] SSRF - Request endpoint is controlled by YARP configuration. Sensitive headers are not copied by default.
                     destinationResponse = await httpClient.SendAsync(destinationRequest, activityCancellationSource.Token);
                 }
                 catch (HttpRequestException hre) when (tryDowngradingH2WsOnFailure)
@@ -202,14 +203,6 @@ internal sealed class HttpForwarder : IHttpForwarder
                     (destinationRequest, requestContent, _) = await CreateRequestMessageAsync(
                         context, destinationPrefix, transformer, config, isStreamingRequest, activityCancellationSource);
 
-                    // Transforms generated a response, do not proxy.
-                    if (RequestUtilities.IsResponseSet(context.Response))
-                    {
-                        Log.NotProxying(_logger, context.Response.StatusCode);
-                        return ForwarderError.None;
-                    }
-
-                    // CodeQL [SM03781] SSRF - Request endpoint is controlled by YARP configuration. Sensitive headers are not copied by default.
                     destinationResponse = await httpClient.SendAsync(destinationRequest, activityCancellationSource.Token);
                 }
             }
@@ -264,10 +257,12 @@ internal sealed class HttpForwarder : IHttpForwarder
             // :: Step 7-A: Check for a 101 upgrade response, this takes care of WebSockets as well as any other upgradeable protocol.
             // Also check for HTTP/2 CONNECT 200 responses, they function similarly.
             if (destinationResponse.StatusCode == HttpStatusCode.SwitchingProtocols
+#if NET7_0_OR_GREATER
                 || (destinationResponse.StatusCode == HttpStatusCode.OK
                 && destinationResponse.Version == HttpVersion.Version20
                 && destinationRequest.Headers.Protocol is not null
                 && destinationRequest.Method.Equals(HttpMethod.Connect))
+#endif
                 )
             {
                 Debug.Assert(requestContent?.Started != true);
@@ -360,10 +355,14 @@ internal sealed class HttpForwarder : IHttpForwarder
             && upgradeHeader.StartsWith("SPDY/", StringComparison.OrdinalIgnoreCase);
         var isH1WsRequest = (upgradeFeature?.IsUpgradableRequest ?? false)
             && string.Equals(WebSocketName, upgradeHeader, StringComparison.OrdinalIgnoreCase);
+        var incomingUpgrade = isSpdyRequest || isH1WsRequest;
+        var isH2WsRequest = false;
+#if NET7_0_OR_GREATER
         var connectFeature = context.Features.Get<IHttpExtendedConnectFeature>();
         var connectProtocol = connectFeature?.Protocol;
-        var isH2WsRequest = (connectFeature?.IsExtendedConnect ?? false)
+        isH2WsRequest = (connectFeature?.IsExtendedConnect ?? false)
             && string.Equals(WebSocketName, connectProtocol, StringComparison.OrdinalIgnoreCase);
+#endif
 
         var outgoingHttps = destinationPrefix.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
         var outgoingVersion = requestConfig?.Version ?? DefaultVersion;
@@ -381,6 +380,7 @@ internal sealed class HttpForwarder : IHttpForwarder
         {
             switch (outgoingVersion.Major, outgoingPolicy, outgoingHttps)
             {
+#if NET7_0_OR_GREATER
                 case (2, HttpVersionPolicy.RequestVersionExact, _):
                 case (2, HttpVersionPolicy.RequestVersionOrHigher, _):
                     outgoingConnect = true;
@@ -393,6 +393,7 @@ internal sealed class HttpForwarder : IHttpForwarder
                     outgoingConnect = true;
                     tryDowngradingH2WsOnFailure = true;
                     break;
+#endif
 
                 default:
                     // Override to use HTTP/1.1, nothing else is supported.
@@ -417,6 +418,7 @@ internal sealed class HttpForwarder : IHttpForwarder
             destinationRequest.VersionPolicy = HttpVersionPolicy.RequestVersionOrLower;
             destinationRequest.Method = HttpMethod.Get;
         }
+#if NET7_0_OR_GREATER
         else if (outgoingConnect)
         {
             // HTTP/2 only (for now).
@@ -426,6 +428,7 @@ internal sealed class HttpForwarder : IHttpForwarder
             destinationRequest.Headers.Protocol = connectProtocol ?? WebSocketName;
             tryDowngradingH2WsOnFailure &= http1IsAllowed;
         }
+#endif
         else
         {
             Debug.Assert(http1IsAllowed || outgoingVersion.Major != 1);
@@ -441,19 +444,6 @@ internal sealed class HttpForwarder : IHttpForwarder
 
         // :: Step 3: Copy request headers Client --► Proxy --► Destination
         await transformer.TransformRequestAsync(context, destinationRequest, destinationPrefix, activityToken.Token);
-
-        // HOOK: Run post-transform middleware
-        if (context.RequestServices != null)
-        {
-            var postTransformMiddlewares = context.RequestServices.GetService(typeof(IEnumerable<IPostTransformMiddleware>)) as IEnumerable<IPostTransformMiddleware>;
-            if (postTransformMiddlewares != null)
-            {
-                foreach (var middleware in postTransformMiddlewares)
-                {
-                    await middleware.InvokeAsync(context, destinationRequest);
-                }
-            }
-        }
 
         if (!ReferenceEquals(requestContent, destinationRequest.Content) && destinationRequest.Content is not EmptyHttpContent)
         {
@@ -493,22 +483,8 @@ internal sealed class HttpForwarder : IHttpForwarder
             {
                 request.Headers.TryAddWithoutValidation(HeaderNames.Connection, HeaderNames.Upgrade);
                 request.Headers.TryAddWithoutValidation(HeaderNames.Upgrade, WebSocketName);
-
-                // The client shouldn't be sending a Sec-WebSocket-Key header with H2 WebSockets, but if it did, let's use it.
-                if (RequestUtilities.TryGetValues(request.Headers, HeaderNames.SecWebSocketKey, out var clientKey))
-                {
-                    if (!ProtocolHelper.CheckSecWebSocketKey(clientKey))
-                    {
-                        Log.InvalidSecWebSocketKeyHeader(_logger, clientKey);
-                        // The request will not be forwarded if we change the status code.
-                        context.Response.StatusCode = StatusCodes.Status400BadRequest;
-                    }
-                }
-                else
-                {
-                    var key = ProtocolHelper.CreateSecWebSocketKey();
-                    request.Headers.TryAddWithoutValidation(HeaderNames.SecWebSocketKey, key);
-                }
+                var key = ProtocolHelper.CreateSecWebSocketKey();
+                request.Headers.TryAddWithoutValidation(HeaderNames.SecWebSocketKey, key);
             }
             // H1->H1, re-add the original Connection, Upgrade headers.
             else
@@ -563,6 +539,16 @@ internal sealed class HttpForwarder : IHttpForwarder
         {
             // 5.0 servers provide a definitive answer for us.
             hasBody = canHaveBodyFeature.CanHaveBody;
+
+#if NET7_0
+            // TODO: Kestrel 7.0 bug only, hasBody shouldn't be true for ExtendedConnect.
+            // https://github.com/dotnet/aspnetcore/issues/46002 Fixed in 8.0
+            var connectFeature = request.HttpContext.Features.Get<IHttpExtendedConnectFeature>();
+            if (connectFeature?.IsExtendedConnect == true)
+            {
+                hasBody = false;
+            }
+#endif
         }
         // https://tools.ietf.org/html/rfc7230#section-3.3.3
         // All HTTP/1.1 requests should have Transfer-Encoding or Content-Length.
@@ -764,6 +750,7 @@ internal sealed class HttpForwarder : IHttpForwarder
         Stream upgradeResult;
         try
         {
+#if NET7_0_OR_GREATER
             if (isHttp2Request)
             {
                 var connectFeature = context.Features.Get<IHttpExtendedConnectFeature>();
@@ -771,14 +758,16 @@ internal sealed class HttpForwarder : IHttpForwarder
                 upgradeResult = await connectFeature.AcceptAsync();
             }
             else
+#endif
             {
                 var upgradeFeature = context.Features.Get<IHttpUpgradeFeature>();
                 Debug.Assert(upgradeFeature != null);
                 upgradeResult = await upgradeFeature.UpgradeAsync();
             }
-
+#if NET8_0_OR_GREATER
             // Disable request timeout, if there is one, after the upgrade has been accepted
             context.Features.Get<IHttpRequestTimeoutFeature>()?.DisableTimeout();
+#endif
         }
         catch (Exception ex)
         {
@@ -835,7 +824,7 @@ internal sealed class HttpForwarder : IHttpForwarder
 
         return error;
 
-        ForwarderError ReportResult(HttpContext context, bool request, StreamCopyResult result, Exception exception, ActivityCancellationTokenSource activityCancellationSource)
+        ForwarderError ReportResult(HttpContext context, bool request, StreamCopyResult result, Exception exception, ActivityCancellationTokenSource activityCancellationTokenSource)
         {
             var error = result switch
             {

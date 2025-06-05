@@ -9,7 +9,7 @@ using Yarp.ReverseProxy.Transforms.Builder;
 
 namespace Yarp.ReverseProxy.Transforms.Tests;
 
-public class HttpMethodTransformExtensionsTests : TransformExtensionsTestsBase
+public class HttpMethodTransformExtensionsTests : TransformExtentionsTestsBase
 {
     private readonly HttpMethodTransformFactory _factory = new();
 

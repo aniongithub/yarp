@@ -9,6 +9,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
+using FluentAssertions.Json;
 using k8s;
 using k8s.Models;
 using Microsoft.Extensions.Logging;
@@ -30,19 +31,16 @@ public class IngressConversionTests
 {
     public IngressConversionTests()
     {
-        JsonConvert.DefaultSettings = () => new JsonSerializerSettings()
-        {
+        JsonConvert.DefaultSettings = () => new JsonSerializerSettings() {
             NullValueHandling = NullValueHandling.Ignore,
-            Converters = { new StringEnumConverter() }
+            Converters = {new StringEnumConverter()}
         };
     }
 
     [Theory]
     [InlineData("basic-ingress")]
     [InlineData("multiple-endpoints-ports")]
-    [InlineData("multiple-endpoints-same-port")]
     [InlineData("https")]
-    [InlineData("https-service-port-protocol")]
     [InlineData("exact-match")]
     [InlineData("annotations")]
     [InlineData("mapped-port")]
@@ -75,7 +73,7 @@ public class IngressConversionTests
                 YarpParser.ConvertFromKubernetesIngress(ingressContext, configContext);
             }
         }
-        var options = new JsonSerializerOptions { Converters = { new JsonStringEnumConverter() } };
+        var options = new JsonSerializerOptions { Converters = {new JsonStringEnumConverter()} };
         VerifyClusters(JsonSerializer.Serialize(configContext.BuildClusterConfig(), options), name);
         VerifyRoutes(JsonSerializer.Serialize(configContext.Routes, options), name);
     }
@@ -87,7 +85,12 @@ public class IngressConversionTests
 
     private static void VerifyRoutes(string routesJson, string name)
     {
+#if NET7_0_OR_GREATER
         VerifyJson(routesJson, name, "routes.json");
+#else
+        VerifyJson(routesJson, name,
+            string.Equals("annotations", name, StringComparison.OrdinalIgnoreCase) ? "routes.net6.json" : "routes.json");
+#endif
     }
 
     private static string StripNullProperties(string json)
@@ -100,7 +103,7 @@ public class IngressConversionTests
         {
             var token = reader.TokenType;
             var value = reader.Value;
-            if (reader.TokenType == JsonToken.PropertyName)
+            if(reader.TokenType == JsonToken.PropertyName)
             {
                 reader.Read();
                 if (reader.TokenType == JsonToken.Null)
@@ -123,8 +126,7 @@ public class IngressConversionTests
 
         var actual = JToken.Parse(json);
         var jOther = JToken.Parse(other);
-
-        Assert.True(JToken.DeepEquals(actual, jOther), $"Expected: {jOther}\nActual: {actual}");
+        actual.Should().BeEquivalentTo(jOther);
     }
 
     private async Task<ICache> GetKubernetesInfo(string name, V1IngressClass ingressClass)

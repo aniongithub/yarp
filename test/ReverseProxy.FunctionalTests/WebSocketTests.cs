@@ -16,6 +16,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Net.Http.Headers;
 using Xunit;
@@ -35,6 +36,7 @@ public class WebSocketTests
         _output = output;
     }
 
+#if NET7_0_OR_GREATER
     public static IEnumerable<object[]> WebSocketVersionNegotiation_TestData()
     {
         foreach (Version incomingVersion in new[] { HttpVersion.Version11, HttpVersion.Version20 })
@@ -101,6 +103,14 @@ public class WebSocketTests
 
                             string expectedVersion = version == 1 ? "HTTP/1.1" : "HTTP/2";
 
+#if NET7_0
+                            if (version == 2 && destinationProtocols is HttpProtocols.Http1 or HttpProtocols.Http1AndHttp2 && !useHttpsOnDestination)
+                            {
+                                // https://github.com/dotnet/runtime/issues/80056
+                                continue;
+                            }
+#endif
+
                             yield return new object[] { incomingVersion, versionPolicy, destinationVersion, destinationProtocols, useHttpsOnDestination, expectedVersion, expectedProxyError, e2eWillFail };
                         }
                     }
@@ -114,6 +124,14 @@ public class WebSocketTests
     public async Task WebSocketVersionNegotiation(Version incomingVersion, HttpVersionPolicy versionPolicy, Version requestedDestinationVersion, HttpProtocols destinationProtocols, bool useHttpsOnDestination,
         string expectedVersion, ForwarderError? expectedProxyError, bool e2eWillFail)
     {
+#if !NET8_0_OR_GREATER
+        if (OperatingSystem.IsMacOS() && useHttpsOnDestination && destinationProtocols != HttpProtocols.Http1)
+        {
+            // Does not support ALPN until .NET 8
+            return;
+        }
+#endif
+
         using var cts = CreateTimer();
 
         var test = CreateTestEnvironment();
@@ -157,6 +175,7 @@ public class WebSocketTests
         Assert.Equal(1, proxyRequests);
         Assert.Equal(expectedProxyError, error);
     }
+#endif
 
     [Theory]
     [InlineData(WebSocketMessageType.Binary)]
@@ -282,11 +301,20 @@ public class WebSocketTests
         }, cts.Token);
     }
 
+#if NET7_0_OR_GREATER
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
     public async Task WebSocket20_To_20(bool useHttps)
     {
+#if !NET8_0_OR_GREATER
+        if (OperatingSystem.IsMacOS() && useHttps)
+        {
+            // Does not support ALPN until .NET 8
+            return;
+        }
+#endif
+
         using var cts = CreateTimer();
 
         var test = CreateTestEnvironment();
@@ -310,6 +338,14 @@ public class WebSocketTests
     [InlineData(false)]
     public async Task WebSocket20_To_11(bool useHttps)
     {
+#if !NET8_0_OR_GREATER
+        if (OperatingSystem.IsMacOS() && useHttps)
+        {
+            // Does not support ALPN until .NET 8
+            return;
+        }
+#endif
+
         using var cts = CreateTimer();
 
         var test = CreateTestEnvironment();
@@ -333,6 +369,14 @@ public class WebSocketTests
     [InlineData(false)]
     public async Task WebSocket11_To_20(bool useHttps)
     {
+#if !NET8_0_OR_GREATER
+        if (OperatingSystem.IsMacOS() && useHttps)
+        {
+            // Does not support ALPN until .NET 8
+            return;
+        }
+#endif
+
         using var cts = CreateTimer();
 
         var test = CreateTestEnvironment();
@@ -452,7 +496,9 @@ public class WebSocketTests
 
     [Theory]
     [InlineData(HttpVersionPolicy.RequestVersionExact, true)]
-    [InlineData(HttpVersionPolicy.RequestVersionExact, false)]
+#if NET8_0_OR_GREATER
+    [InlineData(HttpVersionPolicy.RequestVersionExact, false)] // Times out. https://github.com/dotnet/runtime/issues/80056
+#endif
     [InlineData(HttpVersionPolicy.RequestVersionOrHigher, true)]
     public async Task WebSocketCantFallbackFromH2(HttpVersionPolicy policy, bool useHttps)
     {
@@ -470,15 +516,23 @@ public class WebSocketTests
             using var client = new ClientWebSocket();
             var webSocketsTarget = uri.Replace("https://", "wss://").Replace("http://", "ws://");
             var targetUri = new Uri(new Uri(webSocketsTarget, UriKind.Absolute), "websockets");
+#if NET7_0_OR_GREATER
             using var invoker = CreateInvoker();
             var wse = await Assert.ThrowsAsync<WebSocketException>(() => client.ConnectAsync(targetUri, invoker, cts.Token));
+#else
+            client.Options.RemoteCertificateValidationCallback = (_, _, _, _) => true;
+            var wse = await Assert.ThrowsAsync<WebSocketException>(() => client.ConnectAsync(targetUri, cts.Token));
+#endif
             Assert.Equal("The server returned status code '502' when status code '101' was expected.", wse.Message);
         }, cts.Token);
     }
+#endif
 
     [Theory]
     [InlineData(HttpProtocols.Http1)] // Checked by destination
+#if NET7_0_OR_GREATER
     [InlineData(HttpProtocols.Http2)] // Checked by proxy
+#endif
     public async Task InvalidKeyHeader_400(HttpProtocols destinationProtocol)
     {
         using var cts = CreateTimer();
@@ -486,113 +540,31 @@ public class WebSocketTests
         var test = CreateTestEnvironment();
         test.ProxyProtocol = HttpProtocols.Http1;
         test.DestinationProtocol = destinationProtocol;
-        test.DestinationHttpVersionPolicy = HttpVersionPolicy.RequestVersionExact;
-        test.DestinationHttpVersion = destinationProtocol == HttpProtocols.Http1 ? HttpVersion.Version11 : HttpVersion.Version20;
 
         test.ConfigureProxyApp = builder =>
         {
-            builder.Use(async (context, next) =>
+            builder.Use((context, next) =>
             {
                 context.Request.Headers[HeaderNames.SecWebSocketKey] = "ThisIsAnIncorrectKeyHeaderLongerThan24Bytes";
-
-                var logs = TestLogger.Collect();
-                await next(context);
-
-                if (destinationProtocol == HttpProtocols.Http1)
-                {
-                    Assert.DoesNotContain(logs, log => log.EventId == EventIds.InvalidSecWebSocketKeyHeader);
-                }
-                else
-                {
-                    Assert.Contains(logs, log => log.EventId == EventIds.InvalidSecWebSocketKeyHeader);
-                }
+                return next(context);
             });
         };
 
         await test.Invoke(async uri =>
         {
             using var client = new ClientWebSocket();
+#if NET7_0_OR_GREATER
             client.Options.CollectHttpResponseDetails = true;
+#endif
             var webSocketsTarget = uri.Replace("https://", "wss://").Replace("http://", "ws://");
             var targetUri = new Uri(new Uri(webSocketsTarget, UriKind.Absolute), "websockets");
             client.Options.RemoteCertificateValidationCallback = (_, _, _, _) => true;
             var wse = await Assert.ThrowsAsync<WebSocketException>(() => client.ConnectAsync(targetUri, cts.Token));
             Assert.Equal("The server returned status code '400' when status code '101' was expected.", wse.Message);
+#if NET7_0_OR_GREATER
             Assert.Equal(HttpStatusCode.BadRequest, client.HttpStatusCode);
+#endif
             // TODO: Assert the version https://github.com/dotnet/runtime/issues/75353
-        }, cts.Token);
-    }
-
-    [Fact]
-    public async Task WebSocket20_To_11_WithWellFormedKeyHeader_OriginalKeyIsUsed()
-    {
-        using var cts = CreateTimer();
-
-        var clientKey = ProtocolHelper.CreateSecWebSocketKey();
-
-        var test = CreateTestEnvironment();
-        test.ProxyProtocol = HttpProtocols.Http2;
-        test.DestinationProtocol = HttpProtocols.Http1;
-
-        var originalDestinationApp = test.ConfigureDestinationApp;
-        test.ConfigureDestinationApp = app =>
-        {
-            app.Use((context, next) =>
-            {
-                Assert.True(context.Request.Headers.TryGetValue(HeaderNames.SecWebSocketKey, out var key));
-                Assert.Equal(clientKey, key);
-                return next(context);
-            });
-            originalDestinationApp(app);
-        };
-
-        await test.Invoke(async uri =>
-        {
-            using var client = new ClientWebSocket();
-            client.Options.HttpVersion = HttpVersion.Version20;
-            client.Options.HttpVersionPolicy = HttpVersionPolicy.RequestVersionExact;
-
-            client.Options.SetRequestHeader(HeaderNames.SecWebSocketKey, clientKey);
-
-            await SendWebSocketRequestAsync(client, uri, "HTTP/1.1", cts.Token);
-        }, cts.Token);
-    }
-
-    [Fact]
-    public async Task WebSocket20_To_11_WithInvalidKeyHeader_RequestRejected()
-    {
-        using var cts = CreateTimer();
-
-        var test = CreateTestEnvironment();
-        test.ProxyProtocol = HttpProtocols.Http2;
-        test.DestinationProtocol = HttpProtocols.Http1;
-
-        test.ConfigureProxyApp = builder =>
-        {
-            builder.Use(async (context, next) =>
-            {
-                var logs = TestLogger.Collect();
-                await next(context);
-                Assert.Contains(logs, log => log.EventId == EventIds.InvalidSecWebSocketKeyHeader);
-            });
-        };
-
-        await test.Invoke(async uri =>
-        {
-            var webSocketsTarget = uri.Replace("http://", "ws://");
-            var targetUri = new Uri(new Uri(webSocketsTarget, UriKind.Absolute), "websockets");
-
-            using var client = new ClientWebSocket();
-            client.Options.HttpVersion = HttpVersion.Version20;
-            client.Options.HttpVersionPolicy = HttpVersionPolicy.RequestVersionExact;
-            client.Options.CollectHttpResponseDetails = true;
-
-            client.Options.SetRequestHeader(HeaderNames.SecWebSocketKey, "Foo");
-
-            using var invoker = CreateInvoker();
-            var wse = await Assert.ThrowsAsync<WebSocketException>(() => client.ConnectAsync(targetUri, invoker, cts.Token));
-            Assert.Equal("The server returned status code '400' when status code '200' was expected.", wse.Message);
-            Assert.Equal(HttpStatusCode.BadRequest, client.HttpStatusCode);
         }, cts.Token);
     }
 
@@ -600,14 +572,19 @@ public class WebSocketTests
     {
         var webSocketsTarget = uri.Replace("https://", "wss://").Replace("http://", "ws://");
         var targetUri = new Uri(new Uri(webSocketsTarget, UriKind.Absolute), "websocketversion");
+#if NET7_0_OR_GREATER
         using var invoker = CreateInvoker();
         await client.ConnectAsync(targetUri, invoker, token);
+#else
+        client.Options.RemoteCertificateValidationCallback = (_, _, _, _) => true;
+        await client.ConnectAsync(targetUri, token);
+#endif
         _output.WriteLine("Client connected.");
 
         var buffer = new byte[1024];
         var textToSend = $"Hello World!";
-        var numBytes = Encoding.UTF8.GetBytes(textToSend, buffer);
-        await client.SendAsync(buffer.AsMemory(0, numBytes),
+        var numBytes = Encoding.UTF8.GetBytes(textToSend, buffer.AsSpan());
+        await client.SendAsync(new ArraySegment<byte>(buffer, 0, numBytes),
             WebSocketMessageType.Text,
             endOfMessage: true,
             token);
@@ -634,9 +611,9 @@ public class WebSocketTests
         return new TestEnvironment()
         {
             TestOutput = _output,
-            ConfigureDestinationServices = destinationServices =>
+            ConfigureDestinationServices = destinationServies =>
             {
-                destinationServices.AddRouting();
+                destinationServies.AddRouting();
             },
             ConfigureDestinationApp = destinationApp =>
             {

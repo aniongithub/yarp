@@ -14,7 +14,11 @@ internal sealed class SocketsEventListenerService : EventListenerService<Sockets
 {
     protected override string EventSourceName => "System.Net.Sockets";
 
+#if NET8_0_OR_GREATER
     protected override int NumberOfMetrics => 7;
+#else
+    protected override int NumberOfMetrics => 6;
+#endif
 
     public SocketsEventListenerService(ILogger<SocketsEventListenerService> logger, IEnumerable<ISocketsTelemetryConsumer> telemetryConsumers, IEnumerable<IMetricsConsumer<SocketsMetrics>> metricsConsumers)
         : base(logger, telemetryConsumers, metricsConsumers)
@@ -94,9 +98,11 @@ internal sealed class SocketsEventListenerService : EventListenerService<Sockets
                 metrics.DatagramsSent = longValue;
                 break;
 
+#if NET8_0_OR_GREATER
             case "current-outgoing-connect-attempts":
                 metrics.CurrentOutgoingConnectAttempts = longValue;
                 break;
+#endif
 
             default:
                 return false;

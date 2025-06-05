@@ -29,7 +29,9 @@ var routes = new[]
         {
             Path = "{**catch-all}"
         },
+#if NET8_0_OR_GREATER
         Timeout = TimeSpan.FromSeconds(5),
+#endif
     }
 };
 var clusters = new[]
@@ -98,6 +100,7 @@ services.AddHttpContextAccessor();
 services.AddSingleton<IMetricsConsumer<ForwarderMetrics>, ForwarderMetricsConsumer>();
 services.AddTelemetryConsumer<ForwarderTelemetryConsumer>();
 services.AddTelemetryListeners();
+#if NET8_0_OR_GREATER
 services.AddRequestTimeouts(o =>
 {
     o.DefaultPolicy = new Microsoft.AspNetCore.Http.Timeouts.RequestTimeoutPolicy()
@@ -106,11 +109,14 @@ services.AddRequestTimeouts(o =>
         TimeoutStatusCode = StatusCodes.Status418ImATeapot,
     };
 });
+#endif
 
 var app = builder.Build();
 
 app.UseAuthorization();
+#if NET8_0_OR_GREATER
 app.UseRequestTimeouts();
+#endif
 
 app.MapControllers();
 app.MapReverseProxy(proxyPipeline =>

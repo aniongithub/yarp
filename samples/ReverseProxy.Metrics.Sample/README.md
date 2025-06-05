@@ -28,7 +28,7 @@ The subsystems are:
     - Connection Rate - how many connections are opened a second
     - Total number of connections
     - Number of TLS handshakes
-    - Incoming queue length
+    - Incomming queue length
 
 - **Http** which is the HttpClient which makes outgoing requests to the destination servers. 
 

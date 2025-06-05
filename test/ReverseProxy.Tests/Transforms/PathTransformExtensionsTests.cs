@@ -10,7 +10,7 @@ using Yarp.ReverseProxy.Transforms.Builder;
 
 namespace Yarp.ReverseProxy.Transforms.Tests;
 
-public class PathTransformExtensionsTests : TransformExtensionsTestsBase
+public class PathTransformExtensionsTests : TransformExtentionsTestsBase
 {
     private readonly PathTransformFactory _factory;
 

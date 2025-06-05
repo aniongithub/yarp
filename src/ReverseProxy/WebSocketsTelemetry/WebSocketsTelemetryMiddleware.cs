@@ -28,12 +28,14 @@ internal sealed class WebSocketsTelemetryMiddleware
                 var upgradeWrapper = new HttpUpgradeFeatureWrapper(_timeProvider, context, upgradeFeature);
                 return InvokeAsyncCore(upgradeWrapper, _next);
             }
+#if NET7_0_OR_GREATER
             else if (context.Features.Get<IHttpExtendedConnectFeature>() is { IsExtendedConnect: true } connectFeature
                 && string.Equals("websocket", connectFeature.Protocol, StringComparison.OrdinalIgnoreCase))
             {
                 var connectWrapper = new HttpConnectFeatureWrapper(_timeProvider, context, connectFeature);
                 return InvokeAsyncCore(connectWrapper, _next);
             }
+#endif
         }
 
         return _next(context);
@@ -62,6 +64,7 @@ internal sealed class WebSocketsTelemetryMiddleware
         }
     }
 
+#if NET7_0_OR_GREATER
     private static async Task InvokeAsyncCore(HttpConnectFeatureWrapper connectWrapper, RequestDelegate next)
     {
         connectWrapper.HttpContext.Features.Set<IHttpExtendedConnectFeature>(connectWrapper);
@@ -84,4 +87,5 @@ internal sealed class WebSocketsTelemetryMiddleware
             connectWrapper.HttpContext.Features.Set(connectWrapper.InnerConnectFeature);
         }
     }
+#endif
 }

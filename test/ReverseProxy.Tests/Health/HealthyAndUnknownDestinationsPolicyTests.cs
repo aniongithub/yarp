@@ -8,7 +8,7 @@ using Yarp.ReverseProxy.Model;
 
 namespace Yarp.ReverseProxy.Health.Tests;
 
-public class HealthyAndUnknownDestinationsPolicyTests
+public class HealtyAndUnknownDesitnationsPolicyTests
 {
     [Fact]
     public void GetAvailableDestinations_HealthChecksEnabled_FilterOutUnhealthy()
@@ -36,7 +36,7 @@ public class HealthyAndUnknownDestinationsPolicyTests
         };
         var policy = new HealthyAndUnknownDestinationsPolicy();
 
-        var availableDestinations = policy.GetAvailableDestinations(cluster, allDestinations);
+        var availableDestinations = policy.GetAvailalableDestinations(cluster, allDestinations);
 
         Assert.Equal(3, availableDestinations.Count);
         Assert.Same(allDestinations[0], availableDestinations[0]);
@@ -60,7 +60,7 @@ public class HealthyAndUnknownDestinationsPolicyTests
         };
         var policy = new HealthyAndUnknownDestinationsPolicy();
 
-        var availableDestinations = policy.GetAvailableDestinations(cluster, allDestinations);
+        var availableDestinations = policy.GetAvailalableDestinations(cluster, allDestinations);
 
         Assert.Equal(6, availableDestinations.Count);
         Assert.Same(allDestinations[0], availableDestinations[0]);
@@ -93,7 +93,7 @@ public class HealthyAndUnknownDestinationsPolicyTests
         var policy = new HealthyAndUnknownDestinationsPolicy();
 
         var destination = new DestinationState("d0") { Health = { Active = active, Passive = passive } };
-        var availableDestinations = policy.GetAvailableDestinations(cluster, new[] { destination });
+        var availableDestinations = policy.GetAvailalableDestinations(cluster, new[] { destination });
 
         if (isAvailable)
         {

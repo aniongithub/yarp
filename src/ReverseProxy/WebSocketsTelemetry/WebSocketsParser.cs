@@ -3,6 +3,7 @@
 
 using System;
 using System.Diagnostics;
+using Yarp.ReverseProxy.Utilities;
 
 namespace Yarp.ReverseProxy.WebSocketsTelemetry;
 

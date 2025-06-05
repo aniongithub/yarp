@@ -95,7 +95,6 @@ internal static class YarpParser
         // make sure cluster is present
         foreach (var subset in subsets ?? Enumerable.Empty<V1EndpointSubset>())
         {
-            var isRoutePresent = false;
             foreach (var port in subset.Ports ?? Enumerable.Empty<Corev1EndpointPort>())
             {
                 if (!MatchesPort(port, servicePort))
@@ -103,13 +102,10 @@ internal static class YarpParser
                     continue;
                 }
 
-                if (!isRoutePresent)
-                {
-                    var pathMatch = FixupPathMatch(path);
-                    var host = rule.Host;
-                    routes.Add(CreateRoute(ingressContext, path, cluster, pathMatch, host));
-                    isRoutePresent = true;
-                }
+                var pathMatch = FixupPathMatch(path);
+                var host = rule.Host;
+
+                routes.Add(CreateRoute(ingressContext, path, cluster, pathMatch, host));
 
                 // Add destination for every endpoint address
                 foreach (var address in subset.Addresses ?? Enumerable.Empty<V1EndpointAddress>())
@@ -122,13 +118,7 @@ internal static class YarpParser
 
     private static void AddDestination(ClusterTransfer cluster, YarpIngressContext ingressContext, string host, int? port)
     {
-        var isHttps =
-            ingressContext.Options.Https ||
-            cluster.ClusterId.EndsWith(":443", StringComparison.Ordinal) ||
-            cluster.ClusterId.EndsWith(":https", StringComparison.OrdinalIgnoreCase);
-
-        var protocol = isHttps ? "https" : "http";
-
+        var protocol = ingressContext.Options.Https ? "https" : "http";
         var uri = $"{protocol}://{host}";
         if (port.HasValue)
         {
@@ -156,10 +146,14 @@ internal static class YarpParser
             RouteId = $"{ingressContext.Ingress.Metadata.Name}.{ingressContext.Ingress.Metadata.NamespaceProperty}:{host}{path.Path}",
             Transforms = ingressContext.Options.Transforms,
             AuthorizationPolicy = ingressContext.Options.AuthorizationPolicy,
+#if NET7_0_OR_GREATER
             RateLimiterPolicy = ingressContext.Options.RateLimiterPolicy,
             OutputCachePolicy = ingressContext.Options.OutputCachePolicy,
+#endif
+#if NET8_0_OR_GREATER
             Timeout = ingressContext.Options.Timeout,
             TimeoutPolicy = ingressContext.Options.TimeoutPolicy,
+#endif
             CorsPolicy = ingressContext.Options.CorsPolicy,
             Metadata = ingressContext.Options.RouteMetadata,
             Order = ingressContext.Options.RouteOrder,
@@ -238,6 +232,7 @@ internal static class YarpParser
         {
             options.AuthorizationPolicy = authorizationPolicy;
         }
+#if NET7_0_OR_GREATER
         if (annotations.TryGetValue("yarp.ingress.kubernetes.io/rate-limiter-policy", out var rateLimiterPolicy))
         {
             options.RateLimiterPolicy = rateLimiterPolicy;
@@ -246,6 +241,8 @@ internal static class YarpParser
         {
             options.OutputCachePolicy = outputCachePolicy;
         }
+#endif
+#if NET8_0_OR_GREATER
         if (annotations.TryGetValue("yarp.ingress.kubernetes.io/timeout", out var timeout))
         {
             options.Timeout = TimeSpan.Parse(timeout, CultureInfo.InvariantCulture);
@@ -254,6 +251,7 @@ internal static class YarpParser
         {
             options.TimeoutPolicy = timeoutPolicy;
         }
+#endif
         if (annotations.TryGetValue("yarp.ingress.kubernetes.io/cors-policy", out var corsPolicy))
         {
             options.CorsPolicy = corsPolicy;
@@ -304,7 +302,7 @@ internal static class YarpParser
         // CORS
         // GRPC
         // HTTP2
-        // Connection limits
+        // Conneciton limits
         // rate limits
 
         // backend health checks.

@@ -2,7 +2,6 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
@@ -21,15 +20,13 @@ internal sealed class ForwarderMiddleware
     private readonly RequestDelegate _next; // Unused, this middleware is always terminal
     private readonly ILogger _logger;
     private readonly IHttpForwarder _forwarder;
-    private readonly IEnumerable<IPostTransformMiddleware> _postTransformMiddlewares;
 
-    public ForwarderMiddleware(RequestDelegate next, ILogger<ForwarderMiddleware> logger, IHttpForwarder forwarder, IRandomFactory randomFactory, IEnumerable<IPostTransformMiddleware> postTransformMiddlewares)
+    public ForwarderMiddleware(RequestDelegate next, ILogger<ForwarderMiddleware> logger, IHttpForwarder forwarder, IRandomFactory randomFactory)
     {
         _next = next ?? throw new ArgumentNullException(nameof(next));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _forwarder = forwarder ?? throw new ArgumentNullException(nameof(forwarder));
         _randomFactory = randomFactory ?? throw new ArgumentNullException(nameof(randomFactory));
-        _postTransformMiddlewares = postTransformMiddlewares ?? throw new ArgumentNullException(nameof(postTransformMiddlewares));
     }
 
     /// <inheritdoc/>
@@ -82,7 +79,6 @@ internal sealed class ForwarderMiddleware
             ForwarderTelemetry.Log.ForwarderInvoke(cluster.ClusterId, route.Config.RouteId, destination.DestinationId);
 
             var clusterConfig = reverseProxyFeature.Cluster;
-
             var result = await _forwarder.SendAsync(context, destinationModel.Config.Address, clusterConfig.HttpClient,
                 clusterConfig.Config.HttpRequest ?? ForwarderRequestConfig.Empty, route.Transformer);
 

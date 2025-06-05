@@ -18,6 +18,7 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Primitives;
 using Microsoft.Net.Http.Headers;
 using Moq;
@@ -1059,6 +1060,14 @@ public class HttpForwarderTests
     }
 
     [Theory]
+#if !NET7_0_OR_GREATER // Fixed in .NET 7.0
+    // This is an invalid format per spec but may happen due to https://github.com/dotnet/aspnetcore/issues/26461
+    [InlineData("testA=A_Cookie", "testB=B_Cookie", "testC=C_Cookie")]
+    [InlineData("testA=A_Value", "testB=B_Value", "testC=C_Value")]
+    [InlineData("testA=A_Value, testB=B_Value", "testC=C_Value")]
+    [InlineData("testA=A_Value", "", "testB=B_Value, testC=C_Value")]
+    [InlineData("", "")]
+#endif
     [InlineData("testA=A_Value, testB=B_Value, testC=C_Value")]
     public async Task RequestWithCookieHeaders(params string[] cookies)
     {
@@ -1837,7 +1846,7 @@ public class HttpForwarderTests
     }
 
     [Fact]
-    public async Task ResponseBodyDestinationErrorFirstRead_Returns502()
+    public async Task ResponseBodyDestionationErrorFirstRead_Returns502()
     {
         TestEventListener.Collect();
         TestLogger.Collect();
@@ -1870,7 +1879,7 @@ public class HttpForwarderTests
     }
 
     [Fact]
-    public async Task ResponseBodyDestinationErrorSecondRead_Aborted()
+    public async Task ResponseBodyDestionationErrorSecondRead_Aborted()
     {
         var events = TestEventListener.Collect();
         TestLogger.Collect();

@@ -5,9 +5,11 @@ using System;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
+#if NET8_0_OR_GREATER
 using System.Threading;
 using Microsoft.AspNetCore.Http.Timeouts;
 using Microsoft.Extensions.Options;
+#endif
 using Microsoft.Extensions.Logging;
 using Yarp.ReverseProxy.Utilities;
 
@@ -20,14 +22,23 @@ internal sealed class ProxyPipelineInitializerMiddleware
 {
     private readonly ILogger _logger;
     private readonly RequestDelegate _next;
+#if NET8_0_OR_GREATER
     private readonly IOptionsMonitor<RequestTimeoutOptions> _timeoutOptions;
+#endif
 
-    public ProxyPipelineInitializerMiddleware(RequestDelegate next, ILogger<ProxyPipelineInitializerMiddleware> logger, IOptionsMonitor<RequestTimeoutOptions> timeoutOptions)
+    public ProxyPipelineInitializerMiddleware(RequestDelegate next,
+        ILogger<ProxyPipelineInitializerMiddleware> logger
+#if NET8_0_OR_GREATER
+        , IOptionsMonitor<RequestTimeoutOptions> timeoutOptions
+#endif
+        )
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _next = next ?? throw new ArgumentNullException(nameof(next));
 
+#if NET8_0_OR_GREATER
         _timeoutOptions = timeoutOptions ?? throw new ArgumentNullException(nameof(timeoutOptions));
+#endif
     }
 
     public Task Invoke(HttpContext context)
@@ -47,7 +58,9 @@ internal sealed class ProxyPipelineInitializerMiddleware
             return Task.CompletedTask;
         }
 
+#if NET8_0_OR_GREATER
         EnsureRequestTimeoutPolicyIsAppliedCorrectly(context, endpoint, route);
+#endif
 
         var destinationsState = cluster.DestinationsState;
         context.Features.Set<IReverseProxyFeature>(new ReverseProxyFeature
@@ -80,6 +93,7 @@ internal sealed class ProxyPipelineInitializerMiddleware
         }
     }
 
+#if NET8_0_OR_GREATER
     private void EnsureRequestTimeoutPolicyIsAppliedCorrectly(HttpContext context, Endpoint endpoint, RouteModel route)
     {
         // There's no way to detect the presence of the timeout middleware before this, only the options.
@@ -137,6 +151,7 @@ internal sealed class ProxyPipelineInitializerMiddleware
 
         return timeout != Timeout.InfiniteTimeSpan;
     }
+#endif
 
     private static class Log
     {

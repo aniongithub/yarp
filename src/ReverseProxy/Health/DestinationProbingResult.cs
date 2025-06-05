@@ -25,7 +25,7 @@ public readonly struct DestinationProbingResult
     public DestinationState Destination { get; }
 
     /// <summary>
-    /// Response received.
+    /// Response recieved.
     /// It can be null in case of a failure.
     /// </summary>
     public HttpResponseMessage? Response { get; }

@@ -7,7 +7,7 @@ using Yarp.ReverseProxy.Transforms.Builder;
 
 namespace Yarp.ReverseProxy.Transforms.Tests;
 
-public class QueryTransformExtensionsTests : TransformExtensionsTestsBase
+public class QueryTransformExtensionsTests : TransformExtentionsTestsBase
 {
     private readonly QueryTransformFactory _factory = new();
 

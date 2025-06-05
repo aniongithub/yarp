@@ -4,6 +4,7 @@
 using System;
 using System.Net;
 using System.Net.Http;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -80,10 +81,22 @@ public abstract class HttpProxyCookieTests
             // Ensure that CookieA is the first and CookieB the last.
             Assert.True(context.Request.Headers.TryGetValue(HeaderNames.Cookie, out var headerValues));
 
-            if (context.Request.Protocol is "HTTP/1.1" or "HTTP/2")
+            if (context.Request.Protocol == "HTTP/1.1")
             {
                 Assert.Single(headerValues);
                 Assert.Equal(Cookies, headerValues);
+            }
+            else if (context.Request.Protocol == "HTTP/2")
+            {
+#if NET7_0_OR_GREATER
+                // Fixed in kestrel in 7.0
+                Assert.Single(headerValues);
+                Assert.Equal(Cookies, headerValues);
+#else
+                Assert.Equal(2, headerValues.Count);
+                Assert.Equal(CookieA, headerValues[0]);
+                Assert.Equal(CookieB, headerValues[1]);
+#endif
             }
             else
             {

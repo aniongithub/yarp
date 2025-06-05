@@ -141,9 +141,13 @@ public class ConfigurationConfigProviderTests
                 RouteId = "routeA",
                 ClusterId = "cluster1",
                 AuthorizationPolicy = "Default",
+#if NET7_0_OR_GREATER
                 RateLimiterPolicy = "Default",
+#endif
+#if NET8_0_OR_GREATER
                 TimeoutPolicy = "Default",
                 Timeout = TimeSpan.Zero,
+#endif
                 CorsPolicy = "Default",
                 Order = -1,
                 MaxRequestBodySize = -1,
@@ -676,11 +680,6 @@ public class ConfigurationConfigProviderTests
 
         foreach (string file in Directory.EnumerateFiles(repoRoot, "*.json", SearchOption.AllDirectories))
         {
-            if (file.Contains("\\obj\\", StringComparison.Ordinal) || file.Contains("/obj/", StringComparison.Ordinal))
-            {
-                continue;
-            }
-
             if (file.Contains("appsettings", StringComparison.OrdinalIgnoreCase))
             {
                 var contents = await File.ReadAllTextAsync(file);
@@ -693,7 +692,7 @@ public class ConfigurationConfigProviderTests
 
                     if (contents.Contains("\"ReverseProxy\"", StringComparison.OrdinalIgnoreCase))
                     {
-                        Assert.True(results.Details.Count > 5, $"No details for '{file}'");
+                        Assert.True(results.Details.Count > 5);
                     }
                 }
                 else

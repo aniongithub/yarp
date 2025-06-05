@@ -33,7 +33,7 @@ public sealed class KestrelMetrics
     public long TlsHandshakeRate { get; internal set; }
 
     /// <summary>
-    /// Number of TLS handshakes started since telemetry was enabled.
+    /// Numer of TLS handshakes started since telemetry was enabled.
     /// </summary>
     public long TotalTlsHandshakes { get; internal set; }
 

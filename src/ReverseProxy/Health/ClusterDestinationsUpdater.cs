@@ -76,7 +76,7 @@ internal sealed class ClusterDestinationsUpdater : IClusterDestinationsUpdater
                     config.HealthCheck?.AvailableDestinationsPolicy,
                     HealthCheckConstants.AvailableDestinations.HealthyOrPanic);
 
-                var availableDestinations = destinationPolicy.GetAvailableDestinations(config, allDestinations);
+                var availableDestinations = destinationPolicy.GetAvailalableDestinations(config, allDestinations);
 
                 cluster.DestinationsState = new ClusterDestinationsState(allDestinations, availableDestinations);
             }
