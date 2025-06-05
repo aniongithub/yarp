@@ -10,7 +10,6 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.Primitives;
 using Microsoft.Net.Http.Headers;
@@ -199,7 +198,7 @@ public class HeaderTests
 
             var lines = response.Split("\r\n");
             Assert.Equal("HTTP/1.1 200 OK", lines[0]);
-            // Order varies across vesions.
+            // Order varies across versions.
             // Assert.Equal("Content-Length: 0", lines[1]);
             // Assert.Equal("Connection: close", lines[2]);
             // Assert.StartsWith("Date: ", lines[3]);
@@ -426,15 +425,10 @@ public class HeaderTests
                 {
                     try
                     {
-#if NET8_0_OR_GREATER
                         // Removed by the server
                         Assert.Null(context.Request.ContentLength);
                         // Set it just to make sure YARP removes it
                         context.Request.ContentLength = 11;
-#else
-                        // Fixed in 8.0 https://github.com/dotnet/aspnetcore/issues/43523
-                        Assert.Equal(11, context.Request.ContentLength);
-#endif
                         Assert.Equal("chunked", context.Request.Headers[HeaderNames.TransferEncoding]);
                         proxyTcs.SetResult(0);
                     }
