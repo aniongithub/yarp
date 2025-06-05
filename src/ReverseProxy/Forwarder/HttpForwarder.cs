@@ -445,6 +445,19 @@ internal sealed class HttpForwarder : IHttpForwarder
         // :: Step 3: Copy request headers Client --► Proxy --► Destination
         await transformer.TransformRequestAsync(context, destinationRequest, destinationPrefix, activityToken.Token);
 
+        // HOOK: Run post-transform middleware
+        if (context.RequestServices != null)
+        {
+            var postTransformMiddlewares = context.RequestServices.GetService(typeof(IEnumerable<IPostTransformMiddleware>)) as IEnumerable<IPostTransformMiddleware>;
+            if (postTransformMiddlewares != null)
+            {
+                foreach (var middleware in postTransformMiddlewares)
+                {
+                    await middleware.InvokeAsync(context, destinationRequest);
+                }
+            }
+        }
+
         if (!ReferenceEquals(requestContent, destinationRequest.Content) && destinationRequest.Content is not EmptyHttpContent)
         {
             throw new InvalidOperationException("Replacing the YARP outgoing request HttpContent is not supported. You should configure the HttpContext.Request instead.");
