@@ -25,12 +25,12 @@ internal sealed class V1IngressResourceStatusUpdater : IIngressResourceStatusUpd
         ICache cache,
         ILogger<V1ServiceResourceInformer> logger)
     {
-        _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+        ArgumentNullException.ThrowIfNull(options?.Value);
+        _options = options.Value;
         _client = client;
         _cache = cache;
         _logger = logger;
     }
-
 
     public async Task UpdateStatusAsync(CancellationToken cancellationToken)
     {

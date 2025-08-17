@@ -25,17 +25,21 @@ internal sealed class ForwarderMiddleware
 
     public ForwarderMiddleware(RequestDelegate next, ILogger<ForwarderMiddleware> logger, IHttpForwarder forwarder, IRandomFactory randomFactory, IEnumerable<IPostTransformMiddleware> postTransformMiddlewares)
     {
-        _next = next ?? throw new ArgumentNullException(nameof(next));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _forwarder = forwarder ?? throw new ArgumentNullException(nameof(forwarder));
-        _randomFactory = randomFactory ?? throw new ArgumentNullException(nameof(randomFactory));
+        ArgumentNullException.ThrowIfNull(next);
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(forwarder);
+        ArgumentNullException.ThrowIfNull(randomFactory);
+        _next = next;
+        _logger = logger;
+        _forwarder = forwarder;
+        _randomFactory = randomFactory;
         _postTransformMiddlewares = postTransformMiddlewares ?? throw new ArgumentNullException(nameof(postTransformMiddlewares));
     }
 
     /// <inheritdoc/>
     public async Task Invoke(HttpContext context)
     {
-        _ = context ?? throw new ArgumentNullException(nameof(context));
+        ArgumentNullException.ThrowIfNull(context);
 
         var reverseProxyFeature = context.GetReverseProxyFeature();
         var destinations = reverseProxyFeature.AvailableDestinations

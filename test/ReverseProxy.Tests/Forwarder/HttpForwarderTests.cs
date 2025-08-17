@@ -22,7 +22,6 @@ using Microsoft.Extensions.Primitives;
 using Microsoft.Net.Http.Headers;
 using Moq;
 using Xunit;
-using Xunit.Abstractions;
 using Yarp.ReverseProxy.Common;
 using Yarp.ReverseProxy.Transforms;
 using Yarp.ReverseProxy.Transforms.Builder.Tests;
@@ -1064,7 +1063,6 @@ public class HttpForwarderTests
     {
         var events = TestEventListener.Collect();
 
-        
         var httpContext = new DefaultHttpContext();
         httpContext.Request.Method = "GET";
         httpContext.Request.Headers[HeaderNames.Cookie] = cookies;
@@ -1260,7 +1258,7 @@ public class HttpForwarderTests
     {
         foreach (var header in ResponseMultiHeaderNames())
         {
-            foreach (var version in new[] { "1.1", "2.0" })                
+            foreach (var version in new[] { "1.1", "2.0" })
             {
                 foreach (var value in MultiValues())
                 {
@@ -2935,8 +2933,10 @@ public class HttpForwarderTests
     {
         public DuplexStream(Stream readStream, Stream writeStream)
         {
-            ReadStream = readStream ?? throw new ArgumentNullException(nameof(readStream));
-            WriteStream = writeStream ?? throw new ArgumentNullException(nameof(writeStream));
+            ArgumentNullException.ThrowIfNull(readStream);
+            ArgumentNullException.ThrowIfNull(writeStream);
+            ReadStream = readStream;
+            WriteStream = writeStream;
         }
 
         public Stream ReadStream { get; }
@@ -3009,7 +3009,8 @@ public class HttpForwarderTests
 
         public RawStreamContent(Stream stream)
         {
-            _stream = stream ?? throw new ArgumentNullException(nameof(stream));
+            ArgumentNullException.ThrowIfNull(stream);
+            _stream = stream;
         }
 
         protected override Task<Stream> CreateContentReadStreamAsync()

@@ -14,13 +14,15 @@ internal class YarpConfigContext
 
     public List<ClusterConfig> BuildClusterConfig()
     {
-        return ClusterTransfers.Values.Select(c => new ClusterConfig() {
+        return ClusterTransfers.Values.Select(c => new ClusterConfig()
+        {
             Destinations = c.Destinations,
             ClusterId = c.ClusterId,
             HealthCheck = c.HealthCheck,
             LoadBalancingPolicy = c.LoadBalancingPolicy,
             SessionAffinity = c.SessionAffinity,
-            HttpClient = c.HttpClientConfig
+            HttpClient = c.HttpClientConfig,
+            HttpRequest = c.HttpRequest
         }).ToList();
     }
 }
